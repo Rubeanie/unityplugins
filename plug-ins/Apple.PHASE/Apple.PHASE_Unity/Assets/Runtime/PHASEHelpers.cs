@@ -104,6 +104,14 @@ namespace Apple.PHASE
         [DllImport(PluginDllName)] public static extern bool PHASESetSourceTransform(long inSourceId, Matrix4x4 inTransform);
 
         /// <summary>
+        /// Parents a source under the listener or back under the scene root.
+        /// </summary>
+        /// <param name="inSourceId"> The unique ID representing the source. </param>
+        /// <param name="inAnchored"> True to parent under the listener, false to parent under root. </param>
+        /// <returns> True on success, false otherwise. </returns>
+        [DllImport(PluginDllName)] public static extern bool PHASESetSourceListenerAnchored(long inSourceId, bool inAnchored);
+
+        /// <summary>
         /// Set the gain of the source in the PHASE engine.
         /// </summary>
         /// <param name="inSourceId"> The unique ID representing the source. </param>
@@ -812,13 +820,22 @@ namespace Apple.PHASE
         /// <returns> A <c>Matrix4x4</c> representing a transform in PHASE coordinates. </returns>
         static public Matrix4x4 GetPhaseTransform(Transform inTransform)
         {
-            Matrix4x4 phaseTransform = new Matrix4x4(inTransform.right, inTransform.up, inTransform.forward, new Vector4());
-            Vector3 position = RhConversionMat * inTransform.position;
-            phaseTransform.m30 = position.x;
-            phaseTransform.m31 = position.y;
-            phaseTransform.m32 = position.z;
-            phaseTransform.m33 = 1.0f;
-            return phaseTransform;
+            // RhConversionMat (S) flips Z. S * M * S keeps a proper rotation; flipping one
+            // side only gave a reflection. The native side reads this matrix transposed,
+            // so pass S * M^T * S.
+            Matrix4x4 rigid = Matrix4x4.TRS(inTransform.position, inTransform.rotation, Vector3.one);
+            return RhConversionMat * rigid.transpose * RhConversionMat;
+        }
+
+        /// <summary>
+        /// Converts a Unity matrix to a PHASE transform (Left-Handed to Right-Handed).
+        /// </summary>
+        /// <param name="inTransform"> Unity based matrix to convert to PHASE coordinates. </param>
+        /// <returns> A <c>Matrix4x4</c> representing a transform in PHASE coordinates. </returns>
+        static public Matrix4x4 GetPhaseTransform(Matrix4x4 inTransform)
+        {
+            // RhConversionMat (S) * M * S, passed transposed because the native side reads it that way.
+            return RhConversionMat * inTransform.transpose * RhConversionMat;
         }
 
         static private Vector3 GetCombinedHierachyScale(Transform inTransform)
